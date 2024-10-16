@@ -47,10 +47,13 @@ label_0_files = df_nonviolence[df_nonviolence[1] == 0][0].tolist()
 label_1_files = df_violence[df_violence[1] == 1][0].tolist()
 label_1_files_extra = df3[df3[1] == 1][0].tolist()
 
-print(len(label_0_files), len(label_1_files))
+print(f"Initial count of label 0 (non-violence) videos: {len(label_0_files)}")
+print(f"Initial count of label 1 (violence) videos: {len(label_1_files)}")
+print(f"Available extra label 1 videos: {len(label_1_files_extra)}")
 
 # Calculate required videos
 required_videos_per_label = files_per_label * num_people
+print(f"Required videos per label: {required_videos_per_label}")
 
 
 # Check if enough videos are available
@@ -120,9 +123,11 @@ def split_video(input_path):
     return segments
 
 
-# Function to ensure all videos are one minute or less
+
+
 def process_videos(files):
     processed_videos = []
+    split_videos = []  # List to hold segments from split videos
 
     for file in files:
         clip = VideoFileClip(file)
@@ -132,20 +137,27 @@ def process_videos(files):
             # Randomly select one of the segments to replace the original video
             selected_segment = random.choice(segments)
             processed_videos.append(selected_segment)  # Add only the selected segment
+            split_videos.extend(segments)  # Store all segments created
         else:
             processed_videos.append(file)  # Keep the original if it's <= 60 seconds
         clip.close()
 
-    return processed_videos
+    return processed_videos, split_videos  # Return both processed and split videos
+
+# Randomly select the required number of videos per class
+label_0_files = random.sample(label_0_files, required_videos_per_label)
+label_1_files = random.sample(label_1_files, required_videos_per_label)
+
+print(f"Selected count of label 0 (non-violence) videos for processing: {len(label_0_files)}")
+print(f"Selected count of label 1 (violence) videos for processing: {len(label_1_files)}")
 
 # Process videos for both labels
-label_0_files, label_0_split_videos = process_videos(label_0_files)
-label_1_files, label_1_split_videos = process_videos(label_1_files)
+processed_label_0_files, label_0_split_videos = process_videos(label_0_files)
+processed_label_1_files, label_1_split_videos = process_videos(label_1_files)
 
-# Combine original videos and split videos
-label_0_files.extend(label_0_split_videos)
-label_1_files.extend(label_1_split_videos)
-
+# Combine original and processed videos
+label_0_files.extend(processed_label_0_files)
+label_1_files.extend(processed_label_1_files)
 
 # Randomly select from split videos to fill the class if needed
 def fill_class_from_split(class_files, split_videos):
