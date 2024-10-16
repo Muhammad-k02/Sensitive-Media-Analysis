@@ -88,12 +88,15 @@ if len(label_0_files) < required_videos_per_label or len(label_1_files) < requir
 
 # Splits the input video into 60-second segments and returns them
 def split_video(input_path):
-    """Splits the input video into 60-second segments."""
+    """Splits the input video into 60-second segments, with a max of 5 minutes processed."""
     clip = VideoFileClip(input_path)
     print(f"Loaded: {input_path}, Duration: {clip.duration}s")
 
+    # Limit to 5 minutes if the clip is longer
+    max_duration = min(clip.duration, 300)
+
     segments = []
-    full_minutes = int(clip.duration // 60)
+    full_minutes = int(max_duration // 60)
 
     # Create segments of 60 seconds each
     for i in range(full_minutes):
@@ -105,9 +108,9 @@ def split_video(input_path):
         segments.append(segment_path)  # Add segment path to the list
 
     # Handle the remaining portion, if any
-    remainder = clip.duration % 60
+    remainder = max_duration % 60
     if remainder > 0:
-        sub_clip = clip.subclip(full_minutes * 60, clip.duration)
+        sub_clip = clip.subclip(full_minutes * 60, max_duration)
         segment_path = f"{input_path}_part_{full_minutes + 1}.mp4"  # Save last segment
         sub_clip.write_videofile(segment_path)
         segments.append(segment_path)  # Add last segment path to the list
@@ -117,7 +120,6 @@ def split_video(input_path):
     return segments
 
 
-# Function to ensure all videos are one minute or less
 # Function to ensure all videos are one minute or less
 def process_videos(files):
     processed_videos = []
