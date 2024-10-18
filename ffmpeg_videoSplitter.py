@@ -1,6 +1,6 @@
 import os
 import random
-from moviepy.editor import VideoFileClip
+import subprocess
 import pandas as pd
 
 # Configurations
@@ -9,71 +9,97 @@ videos_per_person_per_class = 5
 files_per_label = 5
 label_0 = 0
 label_1 = 1
-output_base_dir = "/path/to/save/split_videos"  # Specify where to save split videos
+output_base_dir = "/path/to/save/split_videos"  # Specify the save directory
 
 required_videos_per_label = files_per_label * num_people
 
-# Function to split videos or save short ones directly
+
+def run_ffmpeg_command(cmd):
+    """Run FFmpeg command and handle errors."""
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"FFmpeg error: {e}")
+
+
 def process_video(input_path, save_dir):
-    """Process the video: Split if longer than a minute, save directly if shorter."""
-    clip = VideoFileClip(input_path)
-    print(f"Loaded: {input_path}, Duration: {clip.duration:.2f} seconds")
+    """Process the video using FFmpeg."""
+    print(f"Processing: {input_path}")
+
+    # Get video duration
+    cmd_duration = [
+        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1', input_path
+    ]
+    duration = float(subprocess.check_output(cmd_duration).strip())
+    print(f"Loaded: {input_path}, Duration: {duration:.2f} seconds")
 
     base_name = os.path.splitext(os.path.basename(input_path))[0]
     video_dir = os.path.join(save_dir, base_name)
     os.makedirs(video_dir, exist_ok=True)
 
-    if clip.duration < 60:  # Save short videos directly
+    if duration < 60:  # Save short videos directly
         output_path = os.path.join(video_dir, f"{base_name}.mp4")
-        clip.write_videofile(output_path, codec="libx264")
+        cmd_save = ['ffmpeg', '-i', input_path, '-c:v', 'libx264', output_path]
+        run_ffmpeg_command(cmd_save)
         print(f"Saved short video: {output_path}")
-        clip.close()
         return
 
-    # Split video into 5 parts or handle leftover duration
-    total_duration = min(clip.duration, 300)  # Limit to 5 minutes
+    # Split the video into 5 parts or with a leftover
+    total_duration = min(duration, 300)  # Cap at 5 minutes
     segment_duration = total_duration / 5
     segments = []
     start = 0
 
     for i in range(5):
         end = min(start + segment_duration, total_duration)
-        sub_clip = clip.subclip(start, end)
         segment_path = os.path.join(video_dir, f"part_{i + 1}.mp4")
-        sub_clip.write_videofile(segment_path, codec="libx264")
+        cmd_split = [
+            'ffmpeg', '-i', input_path, '-ss', str(start), '-to', str(end),
+            '-c:v', 'libx264', segment_path
+        ]
+        run_ffmpeg_command(cmd_split)
         segments.append(segment_path)
         print(f"Segment {i + 1}: {end - start:.2f} seconds")
         start = end
         if start >= total_duration:
             break
 
-    if clip.duration > total_duration:
-        leftover_clip = clip.subclip(total_duration, clip.duration)
+    if duration > total_duration:
         leftover_path = os.path.join(video_dir, f"leftover.mp4")
-        leftover_clip.write_videofile(leftover_path, codec="libx264")
+        cmd_leftover = [
+            'ffmpeg', '-i', input_path, '-ss', str(total_duration),
+            '-c:v', 'libx264', leftover_path
+        ]
+        run_ffmpeg_command(cmd_leftover)
         segments.append(leftover_path)
-        print(f"Leftover Segment: {clip.duration - total_duration:.2f} seconds")
+        print(f"Leftover Segment: {duration - total_duration:.2f} seconds")
 
-    clip.close()
     print(f"Processed {input_path} into {len(segments)} segments.")
 
+
 def filter_videos_by_duration(video_paths, min_duration=10):
-    """Filter out videos with a duration less than the minimum duration."""
+    """Filter videos by minimum duration using FFmpeg."""
     valid_videos = []
     for path in video_paths:
         try:
-            clip = VideoFileClip(path)
-            if clip.duration >= min_duration:
+            cmd_duration = [
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', path
+            ]
+            duration = float(subprocess.check_output(cmd_duration).strip())
+            if duration >= min_duration:
                 valid_videos.append(path)
             else:
-                print(f"Skipped {path}: Duration {clip.duration:.2f} seconds (too short)")
-            clip.close()
+                print(f"Skipped {path}: Duration {duration:.2f} seconds (too short)")
         except Exception as e:
             print(f"Error loading {path}: {e}")
     return valid_videos
 
+
 # Load CSV files
-df_nonviolence = pd.read_csv('/data/datasets/Violence_Dataset/VideoMae_Data/combo5/data_preservation/working_combioned.csv', header=None)
+df_nonviolence = pd.read_csv(
+    '/data/datasets/Violence_Dataset/VideoMae_Data/combo5/data_preservation/working_combioned.csv', header=None)
 df_violence = pd.read_csv('/data/mkhan/twitter_selected/valid_videos/codes/twitter_violence.csv', header=None)
 df3 = pd.read_csv('/data/datasets/Violence_Dataset/RWF2000/RWF-2000/combined_total.csv', header=None)
 
@@ -90,6 +116,7 @@ label_0_files = filter_videos_by_duration(label_0_files)
 label_1_files = filter_videos_by_duration(label_1_files)
 label_1_files_extra = filter_videos_by_duration(label_1_files_extra)
 
+
 def check_video_availability(files, label):
     """Check if enough videos are available and return the number of missing videos."""
     missing = max(0, required_videos_per_label - len(files))
@@ -98,6 +125,7 @@ def check_video_availability(files, label):
     else:
         print(f"Label {label}: All required videos available.")
     return missing
+
 
 missing_label_0 = check_video_availability(label_0_files, 0)
 missing_label_1 = check_video_availability(label_1_files, 1)
@@ -114,12 +142,9 @@ if missing_label_1 > 0:
 
 print(f"Final label 1 videos: {len(label_1_files)}")
 
-# Ensure we have the required number of videos
-if len(label_0_files) < required_videos_per_label or len(label_1_files) < required_videos_per_label:
-    raise ValueError("Not enough videos to meet the requirements.")
 
 def process_videos(video_files, label):
-    """Process and split videos, saving them under the appropriate label directory."""
+    """Process and split videos into labeled directories."""
     label_dir = os.path.join(output_base_dir, f"label_{label}")
     os.makedirs(label_dir, exist_ok=True)
 
@@ -128,6 +153,7 @@ def process_videos(video_files, label):
             process_video(video_path, label_dir)
         except Exception as e:
             print(f"Error processing {video_path}: {e}")
+
 
 print("Processing label 0 videos...")
 process_videos(label_0_files[:required_videos_per_label], label_0)

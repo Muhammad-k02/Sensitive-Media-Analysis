@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 import numpy as np
@@ -81,19 +82,22 @@ def main():
     parser.add_argument('output_file_suffix', help='output file directory name')
 
     args = parser.parse_args()
+    fixation = os.path.dirname(args.pupil_positions_file)
+    fixation = fixation + "/fixations.csv"
 
-    mean_diameter_3d_by_fixation = pd.DataFrame(pupil_calculation(args.pupil_positions_file, args.fixations_file),
+
+    mean_diameter_3d_by_fixation = pd.DataFrame(pupil_calculation(args.pupil_positions_file, fixation),
                                                 columns=["id", "mean_pupil_diameter_3d"])
 
     plt.scatter(mean_diameter_3d_by_fixation.id, mean_diameter_3d_by_fixation.mean_pupil_diameter_3d)
     max_diameter = mean_diameter_3d_by_fixation['mean_pupil_diameter_3d'].max()
     min_diameter = mean_diameter_3d_by_fixation['mean_pupil_diameter_3d'].min()
+    output_dir = os.path.dirname(args.pupil_positions_file)
 
     plt.xlabel("fixation_id")
     plt.ylabel("mean diameter_3d [mm]")
     plt.ylim(min_diameter - 0.5, max_diameter + 0.5)
-    plt.savefig('pupil_diameter ' + args.output_file_suffix + '.png')
-    plt.show()
+    plt.savefig(os.path.join(output_dir, 'pupil_diameter.png'))
 
 
 if __name__ == "__main__":

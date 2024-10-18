@@ -8,13 +8,6 @@ sns.set(context="notebook", style="whitegrid", font_scale=1.2)
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
-"""
-The load_process function takes in a file path and returns the processed dataframe.
-The function reads in the csv file, drops all NaN values, and then converts negative z-values to positive.
-:param file_path: Specify the path to the exported gaze data file
-:return: A pandas dataframe
-"""
-
 
 def load_process(file_path):
     exported_gaze_file = file_path
@@ -26,14 +19,6 @@ def load_process(file_path):
     exported_gaze.loc[negative_z_mask, ["gaze_point_3d_z"]] = negative_z_values * -1
 
     return exported_gaze
-
-
-"""
-The cart_to_spherical function converts 3D Cartesian coordinates to spherical coordinates.
-:param data: Pass in the dataframe
-:param apply_rad2deg: Convert the angles from radians to degrees
-:return: The radius, theta and phi values
-"""
 
 
 def cart_to_spherical(data, apply_rad2deg=False):
@@ -51,35 +36,12 @@ def cart_to_spherical(data, apply_rad2deg=False):
     return r, theta, phi
 
 
-"""
-The sphere_pos_over_time function plots the position of a sphere over time.
-:param ts: Plot the x-axis of the graph
-:param data: Pass the data to the function
-:param unit: Set the y-axis label
-:return: The position of the sphere over time
-"""
-
-
 def sphere_pos_over_time(ts, data, unit="radians"):
     for key, values in data.items():
         sns.lineplot(x=ts, y=values, label=key)
         plt.xlabel("time [sec]")
         plt.ylabel(unit)
         plt.legend()
-
-
-"""
-The sphere_pos function takes in three arrays of equal length, r, theta and phi.
-It then plots a scatter plot of theta vs phi with each point colored by its distance from
-the origin (r). The colorbar is logarithmic to better show points that are close to the origin.
-The unit parameter allows you to specify whether or not you want your angles in radians or degrees.
-
-:param r: Set the color of each point
-:param theta: Set the x-axis of the plot, and phi is used to set the y-axis
-:param phi: Set the angle of rotation around the z-axis
-:param unit: Set the units of the x and y axis labels
-:return: A scatter plot of theta and phi with color
-"""
 
 
 def sphere_pos(r, theta, phi, unit="radians"):
@@ -100,18 +62,7 @@ def sphere_pos(r, theta, phi, unit="radians"):
     plt.ylabel(f"phi [{unit[:3]}]")
 
 
-"""
-The gaze_velocity_calculation function calculates the velocity of the gaze over time.
-It takes in a dataframe with gaze coordinates and outputs two plots: one showing the 
-gaze velocity over time, and another showing a histogram of all velocities. The function 
-also prints out some statistics about these velocities.
-
-:param exported_gaze: Pass the dataframe of gaze points to the function
-:return: The gaze velocity over time
-"""
-
-
-def gaze_velocity_calculation(exported_gaze):
+def gaze_velocity_calculation(exported_gaze, output_dir):
     print('Constructing Gaze Velocity Diagram')
     r, theta, phi = cart_to_spherical(exported_gaze, apply_rad2deg=True)
     plt.figure(figsize=(16, 4))
@@ -125,8 +76,9 @@ def gaze_velocity_calculation(exported_gaze):
 
     plt.subplot(1, 2, 2)
     sphere_pos(r, theta, phi, unit="degrees")
-    plt.savefig('gaze_velocity_scatter_plot.png')
-    plt.show()
+
+    # Save output files in the same directory as the gaze file
+    plt.savefig(os.path.join(output_dir, 'gaze_velocity_scatter_plot.png'))
 
     squared_theta_diff = np.diff(theta) ** 2
     squared_phi_diff = np.diff(phi) ** 2
@@ -146,23 +98,12 @@ def gaze_velocity_calculation(exported_gaze):
     plt.hist(deg_per_sec, bins=np.logspace(-1, np.log10(500), 50))
     plt.title("Gaze velocity histogram")
     plt.xlabel("Gaze velocity [deg/sec]")
-    plt.savefig('gaze_velocity_histogram.png')
-    plt.show()
+
+    # Save histogram in the same directory
+    plt.savefig(os.path.join(output_dir, 'gaze_velocity_histogram.png'))
 
 
-
-"""
-The plot_on_sphere function takes in three arrays of equal length, r, theta and phi.
-The function then plots these points on a 3D sphere using matplotlib's 3D plotting capabilities.
-The user can specify whether they want to use radians or degrees for the angles 
-:param r: Set the radius of the sphere
-:param theta: Set the angle of elevation
-:param phi: Set the angle of rotation around the z axis
-:param unit: Specify the units of theta and phi
-:return: A 3d scatter plot of points on a sphere
-"""
 def plot_on_sphere(r, theta, phi, unit="radians"):
-
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -177,15 +118,18 @@ def plot_on_sphere(r, theta, phi, unit="radians"):
     ax.set_zlabel('Z')
     ax.set_title('Points on a Sphere')
 
-    plt.show()
-
 
 def main():
     parser = argparse.ArgumentParser(description='Generate Gaze Velocity')
     parser.add_argument('gaze_positions', help='Path to the gaze positions CSV file')
     args = parser.parse_args()
-    gaze_velocity_calculation(load_process(args.gaze_positions))
-    r, theta, phi = cart_to_spherical(load_process(args.gaze_positions))
+
+    # Get the output directory from the gaze file path
+    output_dir = os.path.dirname(args.gaze_positions)
+
+    gaze_data = load_process(args.gaze_positions)
+    gaze_velocity_calculation(gaze_data, output_dir)
+    r, theta, phi = cart_to_spherical(gaze_data)
     plot_on_sphere(r, theta, phi)
 
 

@@ -73,7 +73,7 @@ label_0_videos = get_videos_from_subdirs(label_0_dir) + get_remaining_videos(lab
 label_1_videos = get_videos_from_subdirs(label_1_dir) + get_remaining_videos(label_1_dir)
 
 # Ensure we have enough videos for each subject
-if len(label_0_videos) < num_people * videos_per_person_per_class or \
+if len(label_0_videos) < num_people * videos_per_person_per_class and \
    len(label_1_videos) < num_people * videos_per_person_per_class:
     raise ValueError("Not enough videos available to assign to all subjects.")
 
